@@ -86,6 +86,7 @@ class JEMATerminal implements AccessoryPlugin {
   }
 
   private async accessoryMain(): Promise<void> {
+    gpio.setMode(gpio.MODE_BCM);
     await this.setupGpio(this.options.control.pin, gpio.DIR_OUT);
     await this.setupGpio(this.options.monitor.pin, gpio.DIR_IN);
   }

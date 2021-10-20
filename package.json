@@ -36,8 +36,6 @@
     "homebridge": "^1.0.4"
   },
   "dependencies": {
-    "@types/lodash": "^4.14.165",
-    "@types/pi-spi": "0.0.28",
     "@types/rpi-gpio": "^2.1.1",
     "rpi-gpio": "^2.1.7"
   }
