@@ -91,9 +91,12 @@ class JEMATerminal implements AccessoryPlugin {
     await this.setupGpio(this.options.control.pin, gpio.DIR_OUT);
 
     gpio.on('change', (channel, value) => {
-      this.log(`changed to ${value} channel: ${channel}`);
       if (channel == this.options.monitor.pin) {
+        this.log(`changed to ${value} channel: ${channel}`);
         this.currentValue = this.options.monitor.inverted ? !value : !!value;
+
+        this.switchService.getCharacteristic(hap.Characteristic.On)
+          .emit(CharacteristicEventTypes.GET, () => {});
       }
     });
 
@@ -105,7 +108,8 @@ class JEMATerminal implements AccessoryPlugin {
 
   private setupGpio(pin: number, inout: any): Promise<void> {
     return new Promise((resolve, reject) => {
-      gpio.setup(pin, inout, (err) => {
+      const edge = inout == gpio.DIR_IN ? gpio.EDGE_BOTH : gpio.EDGE_NONE;
+      gpio.setup(pin, inout, edge, (err) => {
         if (err) {
           reject(err);
         } else {
