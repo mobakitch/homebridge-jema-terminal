@@ -32,6 +32,8 @@ class JEMATerminal implements AccessoryPlugin {
 
   private readonly options: any;
 
+  private currentValue: boolean = false;
+
   constructor(log: Logging, config: AccessoryConfig, api: API) {
     this.log = log;
     this.name = config.name;
@@ -39,18 +41,16 @@ class JEMATerminal implements AccessoryPlugin {
 
     this.switchService = new hap.Service.Switch(this.name);
     this.switchService.getCharacteristic(hap.Characteristic.On)
-      .on(CharacteristicEventTypes.GET, async (callback: CharacteristicGetCallback) => {
-        const value = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
-        callback(undefined, value);
-      })
+      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => callback(undefined, this.currentValue))
       .on(CharacteristicEventTypes.SET, async (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
         const currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
         if (currentValue != value) {
           await this.writeGpio(this.options.control.pin, true);
           await this.sleep(this.options.control.duration);
           await this.writeGpio(this.options.control.pin, false);
+          this.currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
         }
-        callback(undefined, await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted));
+        callback(undefined, this.currentValue);
       });
 
     this.informationService = new hap.Service.AccessoryInformation()
@@ -87,8 +87,17 @@ class JEMATerminal implements AccessoryPlugin {
 
   private async accessoryMain(): Promise<void> {
     gpio.setMode(gpio.MODE_BCM);
-    await this.setupGpio(this.options.control.pin, gpio.DIR_OUT);
     await this.setupGpio(this.options.monitor.pin, gpio.DIR_IN);
+    await this.setupGpio(this.options.control.pin, gpio.DIR_OUT);
+
+    gpio.on('change', (channel, value) => {
+      this.log(`changed to ${value} channel: ${channel}`);
+      if (channel == this.options.monitor.pin) {
+        this.currentValue = this.options.monitor.inverted ? !value : !!value;
+      }
+    });
+
+    this.currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
   }
 
   private shutdown(): void {
