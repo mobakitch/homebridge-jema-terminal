@@ -10,8 +10,7 @@ import {
   Logging,
   Service
 } from "homebridge";
-import gpio from "rpi-gpio";
-const gpiop = gpio.promise;
+import JEMATerminal from "rpi-jema-terminal";
 
 let hap: HAP;
 
@@ -20,10 +19,10 @@ let hap: HAP;
  */
 export = (api: API) => {
   hap = api.hap;
-  api.registerAccessory("JEMATerminal", JEMATerminal);
+  api.registerAccessory("JEMATerminal", JEMATerminalAccessory);
 };
 
-class JEMATerminal implements AccessoryPlugin {
+class JEMATerminalAccessory implements AccessoryPlugin {
 
   private readonly log: Logging;
   private readonly name: string;
@@ -31,27 +30,27 @@ class JEMATerminal implements AccessoryPlugin {
   private readonly switchService: Service;
   private readonly informationService: Service;
 
-  private readonly options: any;
-
-  private currentValue: boolean = false;
+  private readonly terminal: JEMATerminal;
 
   constructor(log: Logging, config: AccessoryConfig, api: API) {
     this.log = log;
     this.name = config.name;
-    this.options = config.options;
+    this.terminal = new JEMATerminal(config.options);
 
     this.switchService = new hap.Service.Switch(this.name);
     this.switchService.getCharacteristic(hap.Characteristic.On)
-      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => callback(undefined, this.currentValue))
-      .on(CharacteristicEventTypes.SET, this.onSet);
+      .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => callback(undefined, this.terminal.value))
+      .on(CharacteristicEventTypes.SET,
+        async (value: CharacteristicValue, callback: CharacteristicSetCallback) => callback(undefined, await this.terminal.set(value as boolean)));
 
     this.informationService = new hap.Service.AccessoryInformation()
       .setCharacteristic(hap.Characteristic.Manufacturer, "Kawabata Farm")
       .setCharacteristic(hap.Characteristic.Model, "JEM-A Terminal");
 
-    api.on('didFinishLaunching', this.accessoryMain)
-      .on('shutdown', this.shutdown);
-    
+    api.on('didFinishLaunching', () => this.terminal.setup());
+
+    this.terminal.on('change', (value: any) => this.switchService.getCharacteristic(hap.Characteristic.On).updateValue(value));
+
     log.info("JEM-A Terminal finished initializing!");
   }
 
@@ -72,47 +71,6 @@ class JEMATerminal implements AccessoryPlugin {
       this.informationService,
       this.switchService,
     ];
-  }
-
-  private async accessoryMain(): Promise<void> {
-    gpio.setMode(gpio.MODE_BCM);
-    await gpiop.setup(this.options.monitor.pin, gpio.DIR_IN, gpio.EDGE_BOTH);
-    await gpiop.setup(this.options.control.pin, gpio.DIR_OUT, gpio.EDGE_NONE);
-
-    gpio.on('change', this.onChange);
-
-    this.currentValue = this.normalizeMonitorValue(await gpiop.read(this.options.monitor.pin));
-  }
-
-  private shutdown(): void {
-  }
-
-  private onChange(channel: any, value: any): void {
-    if (channel == this.options.monitor.pin) {
-      this.log(`changed to ${value} channel: ${channel}`);
-      this.currentValue = this.normalizeMonitorValue(value);
-      this.switchService.getCharacteristic(hap.Characteristic.On)
-        .updateValue(this.currentValue);
-    }
-  }
-
-  private async onSet(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-    const currentValue = this.normalizeMonitorValue(await gpiop.read(this.options.monitor.pin));
-    if (currentValue != value) {
-      await gpiop.write(this.options.control.pin, true);
-      await this.sleep(this.options.control.duration);
-      await gpiop.write(this.options.control.pin, false);
-      this.currentValue = value as boolean;
-    }
-    callback(undefined, this.currentValue);
-  }
-
-  private normalizeMonitorValue(value: boolean): boolean {
-    return this.options.monitor.inverted ? !value : !!value;
-  }
-
-  private sleep(timeout: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, timeout));
   }
 
 }
