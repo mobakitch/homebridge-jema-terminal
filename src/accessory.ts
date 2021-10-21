@@ -11,6 +11,7 @@ import {
   Service
 } from "homebridge";
 import gpio from "rpi-gpio";
+const gpiop = gpio.promise;
 
 let hap: HAP;
 
@@ -42,26 +43,14 @@ class JEMATerminal implements AccessoryPlugin {
     this.switchService = new hap.Service.Switch(this.name);
     this.switchService.getCharacteristic(hap.Characteristic.On)
       .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => callback(undefined, this.currentValue))
-      .on(CharacteristicEventTypes.SET, async (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        const currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
-        if (currentValue != value) {
-          await this.writeGpio(this.options.control.pin, true);
-          await this.sleep(this.options.control.duration);
-          await this.writeGpio(this.options.control.pin, false);
-          this.currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
-        }
-        callback(undefined, this.currentValue);
-      });
+      .on(CharacteristicEventTypes.SET, this.onSet);
 
     this.informationService = new hap.Service.AccessoryInformation()
       .setCharacteristic(hap.Characteristic.Manufacturer, "Kawabata Farm")
       .setCharacteristic(hap.Characteristic.Model, "JEM-A Terminal");
 
-    api.on('didFinishLaunching', () => {
-      this.accessoryMain();
-    }).on('shutdown', () => {
-      this.shutdown();
-    });
+    api.on('didFinishLaunching', this.accessoryMain)
+      .on('shutdown', this.shutdown);
     
     log.info("JEM-A Terminal finished initializing!");
   }
@@ -87,62 +76,43 @@ class JEMATerminal implements AccessoryPlugin {
 
   private async accessoryMain(): Promise<void> {
     gpio.setMode(gpio.MODE_BCM);
-    await this.setupGpio(this.options.monitor.pin, gpio.DIR_IN);
-    await this.setupGpio(this.options.control.pin, gpio.DIR_OUT);
+    await gpiop.setup(this.options.monitor.pin, gpio.DIR_IN, gpio.EDGE_BOTH);
+    await gpiop.setup(this.options.control.pin, gpio.DIR_OUT, gpio.EDGE_NONE);
 
-    gpio.on('change', (channel, value) => {
-      if (channel == this.options.monitor.pin) {
-        this.log(`changed to ${value} channel: ${channel}`);
-        this.currentValue = this.options.monitor.inverted ? !value : !!value;
+    gpio.on('change', this.onChange);
 
-        this.switchService.getCharacteristic(hap.Characteristic.On)
-          .emit(CharacteristicEventTypes.GET, () => {});
-      }
-    });
-
-    this.currentValue = await this.readGpio(this.options.monitor.pin, this.options.monitor.inverted);
+    this.currentValue = this.normalizeMonitorValue(await gpiop.read(this.options.monitor.pin));
   }
 
   private shutdown(): void {
   }
 
-  private setupGpio(pin: number, inout: any): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const edge = inout == gpio.DIR_IN ? gpio.EDGE_BOTH : gpio.EDGE_NONE;
-      gpio.setup(pin, inout, edge, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
+  private onChange(channel: any, value: any): void {
+    if (channel == this.options.monitor.pin) {
+      this.log(`changed to ${value} channel: ${channel}`);
+      this.currentValue = this.normalizeMonitorValue(value);
+      this.switchService.getCharacteristic(hap.Characteristic.On)
+        .updateValue(this.currentValue);
+    }
   }
 
-  private readGpio(pin: number, inverted: boolean): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      gpio.read(pin, (err, value) => {
-        if (err) return reject(err);
-        resolve(inverted ? !value : !!value);
-      });
-    });
+  private async onSet(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+    const currentValue = this.normalizeMonitorValue(await gpiop.read(this.options.monitor.pin));
+    if (currentValue != value) {
+      await gpiop.write(this.options.control.pin, true);
+      await this.sleep(this.options.control.duration);
+      await gpiop.write(this.options.control.pin, false);
+      this.currentValue = value as boolean;
+    }
+    callback(undefined, this.currentValue);
   }
 
-  private writeGpio(pin: number, value: boolean): Promise<void> {
-    return new Promise((resolve, reject) => {
-      gpio.write(pin, value, (err) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
+  private normalizeMonitorValue(value: boolean): boolean {
+    return this.options.monitor.inverted ? !value : !!value;
   }
 
   private sleep(timeout: number): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, timeout);
-    });
+    return new Promise(resolve => setTimeout(resolve, timeout));
   }
 
 }
