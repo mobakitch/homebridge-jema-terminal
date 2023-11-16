@@ -1,6 +1,6 @@
 {
   "name": "homebridge-jema-terminal",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A JEMA terminal (JEM-A 1427) accessory plugin for homebridge",
   "main": "dist/accessory.js",
   "scripts": {
@@ -30,10 +30,10 @@
     "url": "http://github.com/KAWABATANorio/homebridge-jema-terminal/issues"
   },
   "devDependencies": {
-    "@types/node": "10.17.19",
-    "typescript": "^3.8.3",
-    "rimraf": "^3.0.2",
-    "homebridge": "^1.0.4"
+    "@types/node": "^20.9.1",
+    "homebridge": "^1.7.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.2.2"
   },
   "dependencies": {
     "rpi-jema-terminal": "^0.0.2"
