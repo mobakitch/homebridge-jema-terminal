@@ -9,8 +9,8 @@ import {
   HAP,
   Logging,
   Service
-} from "homebridge";
-import JEMATerminal from "rpi-jema-terminal";
+} from 'homebridge';
+import JEMATerminal from 'rpi-jema-terminal';
 
 let hap: HAP;
 
@@ -19,12 +19,11 @@ let hap: HAP;
  */
 export = (api: API) => {
   hap = api.hap;
-  api.registerAccessory("JEMATerminal", JEMATerminalAccessory);
+  api.registerAccessory('JEMATerminal', JEMATerminalAccessory);
 };
 
 class JEMATerminalAccessory implements AccessoryPlugin {
 
-  private readonly log: Logging;
   private readonly name: string;
 
   private readonly switchService: Service;
@@ -32,8 +31,11 @@ class JEMATerminalAccessory implements AccessoryPlugin {
 
   private readonly terminal: JEMATerminal;
 
-  constructor(log: Logging, config: AccessoryConfig, api: API) {
-    this.log = log;
+  constructor(
+    private readonly log: Logging,
+    config: AccessoryConfig,
+    api: API)
+  {
     this.name = config.name;
     this.terminal = new JEMATerminal(config.options);
 
@@ -44,14 +46,14 @@ class JEMATerminalAccessory implements AccessoryPlugin {
         async (value: CharacteristicValue, callback: CharacteristicSetCallback) => callback(undefined, await this.terminal.set(value as boolean)));
 
     this.informationService = new hap.Service.AccessoryInformation()
-      .setCharacteristic(hap.Characteristic.Manufacturer, "Kawabata Farm")
-      .setCharacteristic(hap.Characteristic.Model, "JEM-A Terminal");
+      .setCharacteristic(hap.Characteristic.Manufacturer, 'Kawabata Farm')
+      .setCharacteristic(hap.Characteristic.Model, 'JEM-A Terminal');
 
     api.on('didFinishLaunching', () => this.terminal.setup());
 
     this.terminal.on('change', (value: any) => this.switchService.getCharacteristic(hap.Characteristic.On).updateValue(value));
 
-    log.info("JEM-A Terminal finished initializing!");
+    log.info('JEM-A Terminal finished initializing!');
   }
 
   /*
@@ -59,7 +61,7 @@ class JEMATerminalAccessory implements AccessoryPlugin {
    * Typical this only ever happens at the pairing process.
    */
   identify(): void {
-    this.log("Identify!");
+    this.log('Identify!');
   }
 
   /*

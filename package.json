@@ -1,6 +1,6 @@
 {
   "name": "homebridge-jema-terminal",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "A JEMA terminal (JEM-A 1427) accessory plugin for homebridge",
   "main": "dist/accessory.js",
   "scripts": {
@@ -36,6 +36,6 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "rpi-jema-terminal": "^0.0.3"
+    "rpi-jema-terminal": "^0.0.4"
   }
 }
